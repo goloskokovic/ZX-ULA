@@ -38,8 +38,10 @@
  
  
 library IEEE;
+library dataio;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use dataio.std_logic_ops.all;
 
 entity ula is
     port (
@@ -58,7 +60,9 @@ entity ula is
         HSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Horizontal
         VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
         BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
-                                                             
+        Y           : out  std_logic;
+	U           : out  std_logic;
+	V           : out  std_logic;    
                                                              -- interface com o Z80
         A14         : in   std_logic;                        -- Pino 37 - Linha A14 do Z80
         A15         : in   std_logic;                        -- Pino 38 - Linha A15 do Z80
@@ -67,7 +71,7 @@ entity ula is
         RD          : in   std_logic;                        -- Pino 17 - Linha RD do Z80
         CPU         : out  std_logic;                        -- Pino 36 - clock com contencao para o Z80 - 3.57Mhz 
         CS          : in   std_logic;                        -- Pino 2 - Combinacao de IORQ e linha A0 - Monitora o acesso a porta 254
-        ULA_D       : in   std_logic_vector ( 7 downto 0 );  -- Pinos 25 a 32 - Entrada de Dados da ULA. 
+        ULA_D       : inout  std_logic_vector ( 7 downto 0 );  -- Pinos 25 a 32 - Entrada de Dados da ULA. 
                                                              
                                                              -- interface com memorias dinamicas
         VRAM_A      : out  std_logic_vector ( 6 downto 0 );  -- Pinos 3 a 9 - Linhas A0 a A6. Sao multiplexadas em linhas em colunas
@@ -79,11 +83,36 @@ entity ula is
         INT         : out  std_logic;                        -- Pino 34 - Interrupcao da CPU. Ocorre a cada 50hz ou 60Hz (Depende de VERT50_60)
                                                              
         KEYBOARD    : out  std_logic;                        -- Pino 10 - Aviso de leitura de teclado e da porta EAR
-        SOUND       : out  std_logic;                        -- Pino 24 - Saida de som 1 bit
-        MIC         : out  std_logic                         -- Pino 23 - Saida de audio para o gravador cassete
-        
+        SOUND       : inout  std_logic;                      -- Pino 24 - Saida de som 1 bit
+        MIC         : out  std_logic;                        -- Pino 23 - Saida de audio para o gravador cassete
+	T 	    : in  std_logic_vector(4 downto 0)
+	    
     );
 end entity;
+
+--   	   ._____    _____.
+--         |     \__/     |
+--    /CAS |  1        40 | GND
+--     /WR |  2        39 | Q
+--     /RD |  3        38 | /MREQ
+--     /WE |  4        37 | A15
+--      A0 |  5        36 | A14
+--      A1 |  6        35 | /RAS
+--      A2 |  7        34 | /ROM CS
+--      A3 |  8        33 | /IO-ULA
+--      A$ |  9        32 | CLK
+--      A5 | 10        31 | D7
+--      A6 | 11        30 | D6
+--    /INT | 12        29 | D5
+--      5V | 13        28 | SOUND
+--      5V | 14        27 | D4
+--       U | 15        26 | T4
+--       V | 16        25 | D3
+--       Y | 17        24 | T3
+--      D0 | 18        23 | T2
+--      T0 | 19        22 | D2
+--      T1 | 20        21 | D1
+--         |______________|
 
 architecture rtl of ula is
 
@@ -113,7 +142,15 @@ architecture rtl of ula is
     signal VBlank_n       : std_logic := '1';
     signal HBlank_n       : std_logic := '1';
     signal burst          : std_logic := '0';
-        
+
+    signal y,u,v	  : std_logic := '0';
+    signal yR,yG,yB       : std_logic := '0';
+    signal ySync,yR2	  : std_logic := '0';
+    signal uR,uG,uB 	  : std_logic := '0';
+    signal uBurst,uFix,uR2  : std_logic := '0';
+    signal vR,vG,vB       : std_logic := '0';
+    signal vBurst,vR2     : std_logic := '0';
+
     signal BorderColor    : std_logic_vector ( 2 downto 0 ) := "100";    
     signal rMic           : std_logic := '0';
     signal rSpk           : std_logic := '0';
@@ -157,7 +194,7 @@ begin
     begin        
         if rising_edge( OSC ) then
             
-            if ( hcc = 911 ) then
+            if ( hcc = 895 ) then
             
                 hcc <= ( OTHERS => '0' );
                 
@@ -184,10 +221,9 @@ begin
 
             VCrst <= '0';
 
-            if ( hc = 455 ) then
-                if ( ( vc = 261 and VERT50_60 = '1' ) or
-                     ( vc = 311 and VERT50_60 = '0' ) ) then
-                      
+            if ( hc = 447 ) then
+                if ( vc = 311 ) then
+                
                     vc <= ( OTHERS => '0' );
                     VCrst <= '1';
                     
@@ -211,7 +247,7 @@ begin
             
                 HBlank_n <= '0';
                 
-            elsif ( hc = 416 ) then
+            elsif ( hc = 415 ) then
             
                 HBlank_n <= '1';
                 
@@ -226,11 +262,11 @@ begin
     begin
         if falling_edge( clk7 ) then
 
-            if ( hc = 340 ) then
+            if ( hc = 344 ) then
             
                 HSync_n <= '0';
                 
-            elsif ( hc = 372 ) then
+            elsif ( hc = 375 ) then
             
                 HSync_n <= '1';
                 
@@ -240,16 +276,17 @@ begin
     end process;
 
     -- Burstgate - Ocorre logo após o HSync
-	-- Tem duracao de 32 ciclos (4,4us)
+    -- Tem duracao de 32 ciclos (4,4us)
+    -- http://www.zxdesign.info/book/ pg. 169
     process( clk7 )
     begin        
         if falling_edge( clk7 ) then
 
-            if ( hc = 372 ) then
+            if ( hc = 384 ) then
             
                 burst <= '1';
                 
-            elsif ( hc = 404 ) then
+            elsif ( hc = 399 ) then
             
                 burst <= '0';
                 
@@ -264,13 +301,11 @@ begin
     begin
         if falling_edge( clk7 ) then
 
-            if ( ( vc = 224 and VERT50_60 = '1' ) or
-                 ( vc = 248 and VERT50_60 = '0' )) then
+            if ( vc = 248 ) then
                  
                 VBlank_n <= '0';
                 
-            elsif ( ( vc = 232 and VERT50_60 = '1' ) or
-                    ( vc = 256 and VERT50_60 = '0' )) then
+            elsif ( ( vc = 255 ) then
                      
                 VBlank_n <= '1';
                 
@@ -285,13 +320,11 @@ begin
     begin
         if falling_edge( clk7 ) then
             
-            if ( ( vc = 224 and VERT50_60 = '1' ) or
-                 ( vc = 248 and VERT50_60 = '0' )) then
+            if ( vc = 248 ) then
                  
                 VSync_n <= '0';
                 
-            elsif ( ( vc = 228 and VERT50_60 = '1' ) or
-                    ( vc = 252 and VERT50_60 = '0' )) then
+            elsif ( vc = 251 ) then
                      
                 VSync_n <= '1';
                 
@@ -305,13 +338,11 @@ begin
     begin
         if falling_edge( clk7 ) then
 
-            if ( ( vc = 223 and hc = 275 and VERT50_60 = '1' ) or 
-                 ( vc = 247 and hc = 275 and VERT50_60 = '0' )) then
+            if ( vc = 248 and hc = 0 ) then
                  
                 INT_n <= '0';
                 
-            elsif ( ( vc = 223 and  hc = 338 and VERT50_60 = '1' ) or
-                    ( vc = 247 and  hc = 338 and VERT50_60 = '0' )) then
+            elsif ( vc = 248 and  hc = 31 ) then
                      
                 INT_n <= '1';
                 
@@ -472,7 +503,7 @@ begin
 
 
 	-- Colocarmos as informacoes nas variaveis de RGB
-    process( HBlank_n, VBlank_n, Pixel, AttrOut )
+    process( HBlank_n, VBlank_n, Pixel, AttrOut, HSync_n, burst )
     begin
         if ( HBlank_n = '1' and VBlank_n = '1' ) then
             if ( Pixel = '1' ) then --Se e ink
@@ -498,6 +529,32 @@ begin
             rB <= '0';
             
         end if;
+	
+	-- http://www.zxdesign.info/book/ pg. 158
+	yR <= 0.178 * rR when rI='0' else 0.233 * rR;
+	yG <= 0.348 * rG when rI='0' else 0.456 * rG;
+	yB <= 0.092 * rB when rI='0' else 0.118 * rB;
+	ySync <= 0.597 * not HSync_n;
+	yR2 <= 3.1 * ( ySync + yR + yG + yB );
+	y <= 5 - 0.7 - yR2;
+
+	-- http://www.zxdesign.info/book/ pg. 163
+	uR <= 0.216 * not rR;
+	uG <= 0.431 * not rG;
+	uB <= 0.652 * rB;
+	uBurst <= 0.587 * not burst;
+	uFix <= 0.235;
+	uR2 <= 1.55 * ( uFix + uBurst + uR + uG + uB );
+	u <= 5 - 0.7 - uR2;
+
+	-- http://www.zxdesign.info/book/ pg. 166
+	vR <= 0.457 * rR;
+	vG <= 0.383 * not rG;		
+	vB <= 0.078 * not rB;
+	vBurst <= 0.309 * burst;
+	vR2 <= 3.1 * ( vBurst + not vBurst + vR + vG + vB );
+	v <= 5 - 0.7 - vR2;
+		   
     end process;
     
     
@@ -586,8 +643,11 @@ begin
             
             -- Se a ULA foi selecionada e e uma operacao de leitura
             if ( CS = '0' and RD = '0' and vidbus_en = '1') then
-            
-                KEYBOARD <= '0'; -- ativa o pino "KEYBOARD", dizendo para a ROM que e hora de ler o teclado e a porta EAR 
+            	-- http://www.zxdesign.info/book/ pg. 216
+                ULA_D( 4 downto 0 ) <= T( 4 downto 0 );
+		ULA_D( 6 ) <= SOUND;
+		
+		KEYBOARD <= '0'; -- ativa o pino "KEYBOARD", dizendo para a ROM que e hora de ler o teclado e a porta EAR 
             
             else
             
@@ -763,7 +823,9 @@ begin
     CSYNC  <= HSync_n and VSync_n;
     HSYNC  <= HSync_n;
     VSYNC  <= VSync_n;
-
+    Y      <= y;
+    U      <= u;
+    V      <= v;		   
 
     -- outros pinos    
     BURSTGATE   <= burst;
