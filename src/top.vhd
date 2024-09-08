@@ -15,7 +15,7 @@
 --  Site do Chris Smith                                                      --
 --  http://www.zxdesign.info/book/                                           --
 --                                                                           --
---  Versão 001 - 05/12/2013 - Release inicial                                --
+--  Versï¿½o 001 - 05/12/2013 - Release inicial                                --
 --                                                                           --
 -------------------------------------------------------------------------------
 --                                                                           --
@@ -55,8 +55,8 @@ entity top is
         oBLUE        : out  std_logic;                             -- Pino 22 - Azul
         oBRIGHT      : out  std_logic;                             -- Pino 18 - Brilho
         oCSYNC       : out  std_logic;                             -- Pino 33 - Sincronismo Composto
-		oCSYNC2      : out  std_logic;                             -- Cópia do pino 33
-		oHSYNC       : out  std_logic;							   -- Nao presente no CI original, e a saida de Sincronismo Horizontal
+		oCSYNC2      : out  std_logic;                             	 -- Cï¿½pia do pino 33
+		oHSYNC       : out  std_logic;							   		 -- Nao presente no CI original, e a saida de Sincronismo Horizontal
         oVSYNC       : out  std_logic;                             -- Nao presente no CI original, e a saida de Sincronismo Vertical
         oBURSTGATE   : out  std_logic;                             -- Pino 35 - Marcacao do Color Burst para o CI LM1886
                                      
@@ -68,7 +68,7 @@ entity top is
         iRD          : in   std_logic;                             -- Pino 17 - Linha RD do Z80
         oCPU         : out  std_logic;                             -- Pino 36 - clock com contencao para o Z80 - 3.57Mhz 
         iCS          : in   std_logic;                             -- Pino 2 - Combinacao de IORQ e linha A0 - Monitora o acesso a porta 254
-        iULA_D       : in   std_logic_vector (7 downto 0);         -- Pinos 25 a 32 - Entrada de Dados da ULA. 
+        ioULA_D      : inout  std_logic_vector (7 downto 0);       -- Pinos 25 a 32 - Entrada de Dados da ULA. 
                 
                                                                    -- interface com memorias dinamicas
         oVRAM_A      : out  std_logic_vector (6 downto 0);         -- Pinos 3 a 9 - Linhas A0 a A6. Sao multiplexadas em linhas em colunas
@@ -80,9 +80,9 @@ entity top is
         oINT         : out  std_logic;                             -- Pino 34 - Interrupcao da CPU. Ocorre a cada 50hz ou 60Hz (Depende de VERT50_60)
                                      
         oKEYBOARD    : out  std_logic;                             -- Pino 10 - Aviso de leitura de teclado e da porta EAR
-        oSOUND       : out  std_logic;                             -- Pino 24 - Saida de som 1 bit
-        oMIC         : out  std_logic                              -- Pino 23 - Saida de audio para o gravador cassete
-                            
+        ioSOUND      : inout  std_logic;                           -- Pino 24 - Saida de som 1 bit
+        oMIC         : out  std_logic;                             -- Pino 23 - Saida de audio para o gravador cassete
+        iT 	    	   : in   std_logic_vector(4 downto 0)                    
                                                            
     );                       
 end entity;
@@ -122,7 +122,7 @@ begin
         VRAM_RAS   => oVRAM_RAS,     
         VRAM_WR    => oVRAM_WR,     
                     
-        ULA_D      => iULA_D,         
+        ULA_D      => ioULA_D,         
                     
         VERT50_60  => iVERT50_60,     
                     
@@ -131,8 +131,9 @@ begin
         CS         => iCS,            
                     
         KEYBOARD   => oKEYBOARD,    
-        SOUND      => oSOUND,         
-        MIC        => oMIC         
+        SOUND      => ioSOUND,         
+        MIC        => oMIC,
+		  T			 => iT
         
     );
     

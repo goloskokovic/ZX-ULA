@@ -38,10 +38,8 @@
  
  
 library IEEE;
-library dataio;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
-use dataio.std_logic_ops.all;
 
 entity ula is
     port (
@@ -61,8 +59,8 @@ entity ula is
         VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
         BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
         Y           : out  std_logic;
-	U           : out  std_logic;
-	V           : out  std_logic;    
+		  U           : out  std_logic;
+		  V           : out  std_logic;    
                                                              -- interface com o Z80
         A14         : in   std_logic;                        -- Pino 37 - Linha A14 do Z80
         A15         : in   std_logic;                        -- Pino 38 - Linha A15 do Z80
@@ -85,7 +83,7 @@ entity ula is
         KEYBOARD    : out  std_logic;                        -- Pino 10 - Aviso de leitura de teclado e da porta EAR
         SOUND       : inout  std_logic;                      -- Pino 24 - Saida de som 1 bit
         MIC         : out  std_logic;                        -- Pino 23 - Saida de audio para o gravador cassete
-	T 	    : in  std_logic_vector(4 downto 0)
+		  T 	    	  : in  std_logic_vector(4 downto 0)
 	    
     );
 end entity;
@@ -143,13 +141,14 @@ architecture rtl of ula is
     signal HBlank_n       : std_logic := '1';
     signal burst          : std_logic := '0';
 
-    signal y,u,v	  : std_logic := '0';
-    signal yR,yG,yB       : std_logic := '0';
-    signal ySync,yR2	  : std_logic := '0';
-    signal uR,uG,uB 	  : std_logic := '0';
-    signal uBurst,uFix,uR2  : std_logic := '0';
-    signal vR,vG,vB       : std_logic := '0';
-    signal vBurst,vR2     : std_logic := '0';
+	 signal bY,bU,bV		  : integer := 0;
+    signal yR,yG,yB    	  : integer := 0;
+    signal ySync,yR2	  	  : integer := 0;
+    signal uR,uG,uB 	  	  : integer := 0;
+    signal uBurst			  : integer := 0;
+	 signal uFix,uR2  	  : integer := 0;
+    signal vR,vG,vB,vR2   : integer := 0;
+    signal vBurst,nvBurst : integer := 0;
 
     signal BorderColor    : std_logic_vector ( 2 downto 0 ) := "100";    
     signal rMic           : std_logic := '0';
@@ -185,7 +184,22 @@ architecture rtl of ula is
     
     signal cnt_refresh    : unsigned ( 12 downto 0 )         := ( OTHERS => '0' );
     signal VA             : std_logic_vector ( 13 downto 0 ) := ( OTHERS => '0' );
-    signal VidClock       : std_logic;    
+    signal VidClock       : std_logic;  
+
+	 
+	function to_int
+	( 
+		 s : std_logic 
+	) 
+	return integer
+	is
+	begin
+		if s = '1' then
+			return 1;
+		else
+			return 0;
+		end if;
+	end function;	 
     
 begin
     
@@ -305,7 +319,7 @@ begin
                  
                 VBlank_n <= '0';
                 
-            elsif ( ( vc = 255 ) then
+            elsif ( vc = 255 ) then
                      
                 VBlank_n <= '1';
                 
@@ -530,32 +544,35 @@ begin
             
         end if;
 	
-	-- http://www.zxdesign.info/book/ pg. 158
-	yR <= 0.178 * rR when rI='0' else 0.233 * rR;
-	yG <= 0.348 * rG when rI='0' else 0.456 * rG;
-	yB <= 0.092 * rB when rI='0' else 0.118 * rB;
-	ySync <= 0.597 * not HSync_n;
-	yR2 <= 3.1 * ( ySync + yR + yG + yB );
-	y <= 5 - 0.7 - yR2;
-
-	-- http://www.zxdesign.info/book/ pg. 163
-	uR <= 0.216 * not rR;
-	uG <= 0.431 * not rG;
-	uB <= 0.652 * rB;
-	uBurst <= 0.587 * not burst;
-	uFix <= 0.235;
-	uR2 <= 1.55 * ( uFix + uBurst + uR + uG + uB );
-	u <= 5 - 0.7 - uR2;
-
-	-- http://www.zxdesign.info/book/ pg. 166
-	vR <= 0.457 * rR;
-	vG <= 0.383 * not rG;		
-	vB <= 0.078 * not rB;
-	vBurst <= 0.309 * burst;
-	vR2 <= 3.1 * ( vBurst + not vBurst + vR + vG + vB );
-	v <= 5 - 0.7 - vR2;
+			-- http://www.zxdesign.info/book/ pg. 158
+			if ( rI='0' ) then yR <= 178 * to_int( rR ); else yR <= 233 * to_int( rR ); end if;
+			if ( rI='0' ) then yG <= 348 * to_int( rG ); else yG <= 456 * to_int( rG ); end if;
+			if ( rI='0' ) then yB <=  92 * to_int( rB ); else yB <= 118 * to_int( rB ); end if;
+			ySync <= 597 * to_int( not HSync_n );
+			yR2 <= 310 * ( ySync + yR + yG + yB );
+			bY <= ( 430000 - yR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+		
+			-- http://www.zxdesign.info/book/ pg. 163
+			uR <= 216 * to_int( not rR );
+			uG <= 431 * to_int( not rG );
+			uB <= 652 * to_int( rB );
+			uBurst <= 587 * to_int( not burst );
+			uFix <= 235;
+			uR2 <= 155 * ( uFix + uBurst + uR + uG + uB );
+			bU <= ( 430000 - uR2 ) / 1686;
+		
+			-- http://www.zxdesign.info/book/ pg. 166
+			vR <= 457 * to_int( rR );
+			vG <= 383 * to_int( not rG );		
+			vB <=  78 * to_int( not rB );
+			vBurst <= 309 * to_int( burst );
+			nvBurst <= 309 * to_int( not burst );
+			vR2 <= 310 * ( vBurst + nvBurst + vR + vG + vB );
+			bV <= ( 430000 - vR2 ) / 1686;
 		   
     end process;
+	 
+	 
     
     
 
@@ -643,11 +660,12 @@ begin
             
             -- Se a ULA foi selecionada e e uma operacao de leitura
             if ( CS = '0' and RD = '0' and vidbus_en = '1') then
-            	-- http://www.zxdesign.info/book/ pg. 216
+            	
+					-- http://www.zxdesign.info/book/ pg. 216
                 ULA_D( 4 downto 0 ) <= T( 4 downto 0 );
-		ULA_D( 6 ) <= SOUND;
+					 ULA_D( 6 ) <= SOUND;
 		
-		KEYBOARD <= '0'; -- ativa o pino "KEYBOARD", dizendo para a ROM que e hora de ler o teclado e a porta EAR 
+					 KEYBOARD <= '0'; -- ativa o pino "KEYBOARD", dizendo para a ROM que e hora de ler o teclado e a porta EAR 
             
             else
             
@@ -823,9 +841,7 @@ begin
     CSYNC  <= HSync_n and VSync_n;
     HSYNC  <= HSync_n;
     VSYNC  <= VSync_n;
-    Y      <= y;
-    U      <= u;
-    V      <= v;		   
+		   
 
     -- outros pinos    
     BURSTGATE   <= burst;
