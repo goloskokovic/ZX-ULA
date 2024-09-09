@@ -13291,9 +13291,9 @@ Victor Trucco</text>
 <pinref part="IC2" gate="G$1" pin="28"/>
 </segment>
 <segment>
-<wire x1="144.78" y1="165.1" x2="137.16" y2="165.1" width="0.1524" layer="91"/>
-<label x="137.16" y="165.1" size="1.27" layer="95" rot="R180" xref="yes"/>
-<pinref part="IC1" gate="_" pin="OE1"/>
+<label x="137.16" y="134.62" size="1.27" layer="95" rot="R180" xref="yes"/>
+<wire x1="137.16" y1="134.62" x2="144.78" y2="134.62" width="0.1524" layer="91"/>
+<pinref part="IC1" gate="_" pin="IO14"/>
 </segment>
 </net>
 <net name="D5" class="0">
