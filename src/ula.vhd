@@ -50,17 +50,22 @@ entity ula is
                                                              -- tambem usado para etapa de oscilacao das fonte de +12V e -5V
                                                              
                                                              -- Saida de Video digital
-        RED         : out  std_logic;                        -- Pino 21 - Vermelho
-        GREEN       : out  std_logic;                        -- Pino 19 - Verde
-        BLUE        : out  std_logic;                        -- Pino 22 - Azul
-        BRIGHT      : out  std_logic;                        -- Pino 18 - Brilho
-        CSYNC       : out  std_logic;                        -- Pino 33 - Sincronismo Composto
-        HSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Horizontal
-        VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
-        BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
-        Y           : out  std_logic;
-	U           : out  std_logic;
-	V           : out  std_logic;    
+        --RED         : out  std_logic;                        -- Pino 21 - Vermelho
+        --GREEN       : out  std_logic;                        -- Pino 19 - Verde
+        --BLUE        : out  std_logic;                        -- Pino 22 - Azul
+        --BRIGHT      : out  std_logic;                        -- Pino 18 - Brilho
+        --CSYNC       : out  std_logic;                        -- Pino 33 - Sincronismo Composto
+        --HSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Horizontal
+        --VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
+        --BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
+        
+		  --Y           : out  std_logic;
+        --U           : out  std_logic;
+        --V           : out  std_logic;
+        YUV         : out  std_logic_vector ( 7 downto 0 );
+        DAC_A       : out  std_logic_vector ( 1 downto 0 );
+        DAC_WR      : out  std_logic;
+		  
                                                              -- interface com o Z80
         A14         : in   std_logic;                        -- Pino 37 - Linha A14 do Z80
         A15         : in   std_logic;                        -- Pino 38 - Linha A15 do Z80
@@ -83,12 +88,12 @@ entity ula is
         KEYBOARD    : out  std_logic;                        -- Pino 10 - Aviso de leitura de teclado e da porta EAR
         SOUND       : inout  std_logic;                      -- Pino 24 - Saida de som 1 bit
         MIC         : out  std_logic;                        -- Pino 23 - Saida de audio para o gravador cassete
-	T 	    : in  std_logic_vector(4 downto 0)
+        T           : in  std_logic_vector(4 downto 0)
 	    
     );
 end entity;
 
---   	   ._____    _____.
+--         ._____    _____.
 --         |     \__/     |
 --    /CAS |  1        40 | GND
 --     /WR |  2        39 | Q
@@ -141,11 +146,11 @@ architecture rtl of ula is
     signal HBlank_n       : std_logic := '1';
     signal burst          : std_logic := '0';
 
-    signal tY,tU,tV	  : integer := 0;
-    signal yR,yG,yB    	  : integer := 0;
-    signal ySync,yR2	  : integer := 0;
-    signal uR,uG,uB 	  : integer := 0;
-    signal uBurst	  : integer := 0;
+    signal Y,U,V          : integer := 0;
+    signal yR,yG,yB       : integer := 0;
+    signal ySync,yR2      : integer := 0;
+    signal uR,uG,uB       : integer := 0;
+    signal uBurst         : integer := 0;
     signal uFix,uR2  	  : integer := 0;
     signal vR,vG,vB,vR2   : integer := 0;
     signal vBurst,nvBurst : integer := 0;
@@ -187,19 +192,14 @@ architecture rtl of ula is
     signal VidClock       : std_logic;  
 
 	 
-	function to_int
-	( 
-	    s : std_logic 
-	) 
-	return integer
-	is
-	begin
-	    if s = '1' then
-		return 1;
-	    else
-		return 0;
-	    end if;
-	end function;	 
+    function to_int( s : std_logic ) return integer is
+    begin
+        if s = '1' then
+            return 1;
+        else
+            return 0;
+        end if;
+    end function;	 
     
 begin
     
@@ -535,6 +535,41 @@ begin
                 rB <= AttrOut( 3 );
                 
             end if;
+				
+				if ( rI='0' ) then  -- http://www.zxdesign.info/book/ pg. 158
+            
+                yR <= 178 * to_int( rR );
+                yG <= 348 * to_int( rG );
+                yB <=  92 * to_int( rB );
+                                
+            else
+            
+                yR <= 233 * to_int( rR );
+                yG <= 456 * to_int( rG );
+                yB <= 118 * to_int( rB );
+                
+            end if;
+				
+            ySync <= 597 * to_int( not HSync_n );
+            yR2 <= 310 * ( ySync + yR + yG + yB );
+            Y <= ( 430000 - yR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+								
+            uR <= 216 * to_int( not rR ); -- http://www.zxdesign.info/book/ pg. 163
+            uG <= 431 * to_int( not rG );
+            uB <= 652 * to_int( rB );
+            uBurst <= 587 * to_int( not burst );
+            uFix <= 235;
+            uR2 <= 155 * ( uFix + uBurst + uR + uG + uB );
+            U <= ( 430000 - uR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+				
+            vR <= 457 * to_int( rR ); -- http://www.zxdesign.info/book/ pg. 166
+            vG <= 383 * to_int( not rG );		
+            vB <=  78 * to_int( not rB );
+            vBurst <=  309 * to_int( burst );
+            nvBurst <= 309 * to_int( not burst );
+            vR2 <= 310 * ( vBurst + nvBurst + vR + vG + vB );
+            V <= ( 430000 - vR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+				
         else -- esta fora da tela (periodos de "blank"), entao, preto
         
             rI <= '0';
@@ -543,100 +578,8 @@ begin
             rB <= '0';
             
         end if;
-    end process;
-	 
-    -- PWM Y
-    process ( clk7 ) 
-		
-	variable timer_r : natural range 0 to 255;
-	variable pwm_o : std_logic := '0';
-		
-	begin
-	    if rising_edge( clk7 ) then
-	        -- http://www.zxdesign.info/book/ pg. 158
-		if ( rI='0' ) then
-            
-                    yR <= 178 * to_int( rR );
-                    yG <= 348 * to_int( rG );
-                    yB <=  92 * to_int( rB );
-                                
-                else
-            
-                    yR <= 233 * to_int( rR );
-                    yG <= 456 * to_int( rG );
-                    yB <= 118 * to_int( rB );
-                
-            	end if;
-				
-		ySync <= 597 * to_int( not HSync_n );
-		yR2 <= 310 * ( ySync + yR + yG + yB );
-		-- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
-		tY <= ( 430000 - yR2 ) / 1686; 
-			
-		pwm_o := '0';
-		timer_r := timer_r + 1;
-		if timer_r < tY then 
-		    pwm_o := '1';
-		end if;				
-			
-	    end if;			
-    end process;
-    
-	 
-    -- PWM U
-    process ( clk7 ) 
-		
-	variable timer_r : natural range 0 to 255;
-	variable pwm_o : std_logic := '0';
-		
-	begin
-	    if rising_edge( clk7 ) then
-			
-		-- http://www.zxdesign.info/book/ pg. 163
-		uR <= 216 * to_int( not rR );
-		uG <= 431 * to_int( not rG );
-		uB <= 652 * to_int( rB );
-		uBurst <= 587 * to_int( not burst );
-		uFix <= 235;
-		uR2 <= 155 * ( uFix + uBurst + uR + uG + uB );
-		-- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
-		tU <= ( 430000 - uR2 ) / 1686;
-			
-		pwm_o := '0';
-		timer_r := timer_r + 1;
-		if timer_r < tU then 
-		    pwm_o := '1';
-		end if;				
-			
-	    end if;			
-    end process;
-	 
-    -- PWM V
-    process ( clk7 ) 
-		
-	variable timer_r : natural range 0 to 255;
-	variable pwm_o : std_logic := '0';
-		
-	begin
-	    if rising_edge( clk7 ) then
-			
-		vR <= 457 * to_int( rR );
-		vG <= 383 * to_int( not rG );		
-		vB <=  78 * to_int( not rB );
-		vBurst <=  309 * to_int( burst );
-		nvBurst <= 309 * to_int( not burst );
-		vR2 <= 310 * ( vBurst + nvBurst + vR + vG + vB );
-		-- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
-		tV <= ( 430000 - vR2 ) / 1686;
-			
-		pwm_o := '0';
-		timer_r := timer_r + 1;
-		if timer_r < tV then 
-		    pwm_o := '1';
-		end if;				
-			
-	    end if;			
-    end process;
+    end process;	 
+	
 
     -- Em alguns ciclos de refresh o acesso as memorias dinamicas deve ser feito pela ULA
     vidbus_en <=   '1' when Border_n = '1' and hc( 3 downto 0 ) = "0000" else
@@ -723,11 +666,11 @@ begin
             -- Se a ULA foi selecionada e e uma operacao de leitura
             if ( CS = '0' and RD = '0' and vidbus_en = '1') then
             	
-		-- http://www.zxdesign.info/book/ pg. 216
+                -- http://www.zxdesign.info/book/ pg. 216
                 ULA_D( 4 downto 0 ) <= T( 4 downto 0 );
-		ULA_D( 6 ) <= SOUND;
+                ULA_D( 6 ) <= SOUND;
 		
-		--KEYBOARD <= '0'; -- ativa o pino "KEYBOARD", dizendo para a ROM que e hora de ler o teclado e a porta EAR 
+                --KEYBOARD <= '0'; -- ativa o pino "KEYBOARD", dizendo para a ROM que e hora de ler o teclado e a porta EAR 
             
             else
             
@@ -896,19 +839,19 @@ begin
                                  -- A ULA na pratica nunca escreve nas memorias dinamicas, apenas le o seu conteudo e monta a tela. 
     
     -- Saida de video
-    RED    <= rR;
-    GREEN  <= rG;
-    BLUE   <= rB;
-    BRIGHT <= rI and ( rR or rg or rB );   -- Saida de Bright. Temos que combinar com os bits de cor para evita bright no preto
-    CSYNC  <= HSync_n and VSync_n;
-    HSYNC  <= HSync_n;
-    VSYNC  <= VSync_n;
+    --RED    <= rR;
+    --GREEN  <= rG;
+    --BLUE   <= rB;
+    --BRIGHT <= rI and ( rR or rg or rB );   -- Saida de Bright. Temos que combinar com os bits de cor para evita bright no preto
+    --CSYNC  <= HSync_n and VSync_n;
+    --HSYNC  <= HSync_n;
+    --VSYNC  <= VSync_n;
 		   
 
     -- outros pinos    
-    BURSTGATE   <= burst;
-    SUBCARRIER  <= subc;
-    MIC         <= rMic;
+    --BURSTGATE   <= burst;
+    --SUBCARRIER  <= subc;
+    --MIC         <= rMic;
     SOUND       <= rSpk;
     INT         <= INT_n;
     

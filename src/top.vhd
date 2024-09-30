@@ -50,15 +50,15 @@ entity top is
                                                                    -- tambem usado para etapa de oscilacao das fonte de +12V e -5V
                                      
                                                                    -- Saida de Video digital
-        oRED         : out  std_logic;                             -- Pino 21 - Vermelho
-        oGREEN       : out  std_logic;                             -- Pino 19 - Verde
-        oBLUE        : out  std_logic;                             -- Pino 22 - Azul
-        oBRIGHT      : out  std_logic;                             -- Pino 18 - Brilho
-        oCSYNC       : out  std_logic;                             -- Pino 33 - Sincronismo Composto
-		oCSYNC2      : out  std_logic;                             	 -- C�pia do pino 33
-		oHSYNC       : out  std_logic;							   		 -- Nao presente no CI original, e a saida de Sincronismo Horizontal
-        oVSYNC       : out  std_logic;                             -- Nao presente no CI original, e a saida de Sincronismo Vertical
-        oBURSTGATE   : out  std_logic;                             -- Pino 35 - Marcacao do Color Burst para o CI LM1886
+        --oRED         : out  std_logic;                             -- Pino 21 - Vermelho
+        --oGREEN       : out  std_logic;                             -- Pino 19 - Verde
+        --oBLUE        : out  std_logic;                             -- Pino 22 - Azul
+        --oBRIGHT      : out  std_logic;                             -- Pino 18 - Brilho
+        --oCSYNC       : out  std_logic;                             -- Pino 33 - Sincronismo Composto
+        --oCSYNC2      : out  std_logic;                             	 -- C�pia do pino 33
+        --oHSYNC       : out  std_logic;							   		 -- Nao presente no CI original, e a saida de Sincronismo Horizontal
+        --oVSYNC       : out  std_logic;                             -- Nao presente no CI original, e a saida de Sincronismo Vertical
+        --oBURSTGATE   : out  std_logic;                             -- Pino 35 - Marcacao do Color Burst para o CI LM1886
                                      
                                                                    -- interface com o Z80
         iA14         : in   std_logic;                             -- Pino 37 - Linha A14 do Z80
@@ -79,7 +79,7 @@ entity top is
         iVERT50_60   : in   std_logic;                             -- Pino 1 - Selecao de frequencia vertical entre 50Hz ou 60Hz
         oINT         : out  std_logic;                             -- Pino 34 - Interrupcao da CPU. Ocorre a cada 50hz ou 60Hz (Depende de VERT50_60)
                                      
-        oKEYBOARD    : out  std_logic;                             -- Pino 10 - Aviso de leitura de teclado e da porta EAR
+        --oKEYBOARD    : out  std_logic;                             -- Pino 10 - Aviso de leitura de teclado e da porta EAR
         ioSOUND      : inout  std_logic;                           -- Pino 24 - Saida de som 1 bit
         oMIC         : out  std_logic;                             -- Pino 23 - Saida de audio para o gravador cassete
         iT 	    	   : in   std_logic_vector(4 downto 0)                    
@@ -102,14 +102,14 @@ begin
                     
         SUBCARRIER => oSUBCARRIER,     
                     
-        RED        => oRED,          
-        GREEN      => oGREEN,         
-        BLUE       => oBLUE,         
-        BRIGHT     => oBRIGHT,        
-        CSYNC      => s_CompSync,        
-        HSYNC      => oHSYNC, 
-        VSYNC      => oVSYNC, 
-        BURSTGATE  => oBURSTGATE,    
+        --RED        => oRED,          
+        --GREEN      => oGREEN,         
+        --BLUE       => oBLUE,         
+        --BRIGHT     => oBRIGHT,        
+        --CSYNC      => s_CompSync,        
+        --HSYNC      => oHSYNC, 
+        --VSYNC      => oVSYNC, 
+        --BURSTGATE  => oBURSTGATE,    
                     
         A14        => iA14,            
         A15        => iA15,            
@@ -130,15 +130,15 @@ begin
                     
         CS         => iCS,            
                     
-        KEYBOARD   => oKEYBOARD,    
+        --KEYBOARD   => oKEYBOARD,    
         SOUND      => ioSOUND,         
-        MIC        => oMIC,
+        --MIC        => oMIC,
 		  T			 => iT
         
     );
     
-    oCSYNC  <= s_CompSync;
-    oCSYNC2 <= s_CompSync;
+    --oCSYNC  <= s_CompSync;
+    --oCSYNC2 <= s_CompSync;
 
 
 end architecture;
