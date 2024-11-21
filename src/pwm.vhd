@@ -14,7 +14,7 @@ entity PWM is
 	port(
 		clk: in std_logic;
 		PWM: out std_logic;
-		duty_cycle: in std_logic_vector(7 downto 0) := "00100000" -- 8 bits for 0 to 100% of duty cycle
+		duty_cycle: in integer
 		);
 end PWM;
 
@@ -24,8 +24,8 @@ architecture modulation of PWM is
 BEGIN
 		PROCESS (clk) 
 		
-		constant prescaler: integer range 0 to 255 := 28; 	-- Clock divider for reach  1kHz, change this value 
-															-- with the following equation: clk/(255*frequency)
+		constant prescaler: integer range 0 to 255 := 28; 	-- Clock divider for reach 1kHz, change this value 
+																			-- with the following equation: clk/(255*frequency)
 		variable t: integer range 0 to 32768 := 0;			-- Time counter
 		variable t_mod: integer range 0 to 255;				-- Time counter for the duty cycle
 		constant end_range: integer range 0 to 255:=255;	-- Constante to produce the low signal
@@ -39,10 +39,10 @@ BEGIN
 					if(t_mod=255) then
 						t_mod:=0;
 					end if;
-					if(t_mod <= CONV_INTEGER(duty_cycle)) then
+					if(t_mod <= duty_cycle) then
 						signal_pwm <= '0';
 					end if;
-					if(t_mod >= end_range-CONV_INTEGER(duty_cycle)) then
+					if(t_mod >= end_range - duty_cycle) then
 						signal_pwm <= '1';
 					end if;
 				end if;

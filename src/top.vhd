@@ -15,24 +15,7 @@
 --  Site do Chris Smith                                                      --
 --  http://www.zxdesign.info/book/                                           --
 --                                                                           --
---  Vers�o 001 - 05/12/2013 - Release inicial                                --
---                                                                           --
--------------------------------------------------------------------------------
---                                                                           --
---  This file is part of ULA CPLD.                                           --
---                                                                           --
---  ULA CPLD is free software: you can redistribute it and/or modify         --
---  it under the terms of the GNU General Public License as published by     --
---  the Free Software Foundation, either version 3 of the License, or        --
---  (at your option) any later version.                                      --
---                                                                           --
---  ULA CPLD is distributed in the hope that it will be useful,              --
---  but WITHOUT ANY WARRANTY; without even the implied warranty of           --
---  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            --
---  GNU General Public License for more details.                             --
---                                                                           --
---  You should have received a copy of the GNU General Public License        --
---  along with ULA CPLD.  If not, see <http://www.gnu.org/licenses/>         --
+--  Versão 001 - 05/12/2013 - Release inicial                                --
 --                                                                           --
 -------------------------------------------------------------------------------
 
@@ -44,19 +27,19 @@ use IEEE.NUMERIC_STD.ALL;
 entity top is
     port (
     
-        iOSC         : in   std_logic;                             -- Pino 11 - OSC - entrada de 14.30244 Mhz, vindo do TK
+        iOSC         : in   std_logic;                             	-- Pino 11 - OSC - entrada de 14.30244 Mhz, vindo do TK
                                                                   
-        oSUBCARRIER  : out  std_logic;                             -- Pino 39 - Subcarrier - 3.575611 Mhz - Subportadora de Croma e
-                                                                   -- tambem usado para etapa de oscilacao das fonte de +12V e -5V
+        --oSUBCARRIER  : out  std_logic;                             	-- Pino 39 - Subcarrier - 3.575611 Mhz - Subportadora de Croma e
+																							-- tambem usado para etapa de oscilacao das fonte de +12V e -5V
                                      
-                                                                   -- Saida de Video digital
+																							-- Saida de Video digital
         --oRED         : out  std_logic;                             -- Pino 21 - Vermelho
         --oGREEN       : out  std_logic;                             -- Pino 19 - Verde
         --oBLUE        : out  std_logic;                             -- Pino 22 - Azul
         --oBRIGHT      : out  std_logic;                             -- Pino 18 - Brilho
         --oCSYNC       : out  std_logic;                             -- Pino 33 - Sincronismo Composto
-        --oCSYNC2      : out  std_logic;                             	 -- C�pia do pino 33
-        --oHSYNC       : out  std_logic;							   		 -- Nao presente no CI original, e a saida de Sincronismo Horizontal
+        --oCSYNC2      : out  std_logic;                             -- C�pia do pino 33
+        --oHSYNC       : out  std_logic;							   		-- Nao presente no CI original, e a saida de Sincronismo Horizontal
         --oVSYNC       : out  std_logic;                             -- Nao presente no CI original, e a saida de Sincronismo Vertical
         --oBURSTGATE   : out  std_logic;                             -- Pino 35 - Marcacao do Color Burst para o CI LM1886
                                      
@@ -100,7 +83,7 @@ begin
                     
         CPU        => oCPU,        
                     
-        SUBCARRIER => oSUBCARRIER,     
+        --SUBCARRIER => oSUBCARRIER,     
                     
         --RED        => oRED,          
         --GREEN      => oGREEN,         

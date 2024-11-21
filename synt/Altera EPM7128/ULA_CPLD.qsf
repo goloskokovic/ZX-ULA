@@ -49,8 +49,6 @@ set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR "-1"
 set_global_assignment -name OPTIMIZE_HOLD_TIMING OFF
 set_global_assignment -name OPTIMIZE_MULTI_CORNER_TIMING OFF
 set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
-set_global_assignment -name VHDL_FILE ../../src/ula.vhd
-set_global_assignment -name VHDL_FILE ../../src/top.vhd
 set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (VHDL)"
 set_global_assignment -name EDA_OUTPUT_DATA_FORMAT VHDL -section_id eda_simulation
 set_global_assignment -name MAX7000_DEVICE_IO_STANDARD TTL
@@ -89,3 +87,9 @@ set_location_assignment PIN_79 -to T[3]
 set_location_assignment PIN_78 -to T[2]
 set_location_assignment PIN_75 -to T[1]
 set_location_assignment PIN_72 -to T[0]
+set_global_assignment -name VHDL_FILE ../../src/pwm.vhd
+set_global_assignment -name VHDL_FILE ../../src/ula.vhd
+set_global_assignment -name VHDL_FILE ../../src/top.vhd
+set_location_assignment PIN_70 -to Y
+set_location_assignment PIN_67 -to U
+set_location_assignment PIN_69 -to V

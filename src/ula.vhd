@@ -18,24 +18,6 @@
 --  Versão 001 - 05/12/2013 - Release inicial                                --
 --                                                                           --
 -------------------------------------------------------------------------------
---                                                                           --
---  This file is part of ULA CPLD.                                           --
---                                                                           --
---  ULA CPLD is free software: you can redistribute it and/or modify         --
---  it under the terms of the GNU General Public License as published by     --
---  the Free Software Foundation, either version 3 of the License, or        --
---  (at your option) any later version.                                      --
---                                                                           --
---  ULA CPLD is distributed in the hope that it will be useful,              --
---  but WITHOUT ANY WARRANTY; without even the implied warranty of           --
---  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            --
---  GNU General Public License for more details.                             --
---                                                                           --
---  You should have received a copy of the GNU General Public License        --
---  along with ULA CPLD.  If not, see <http://www.gnu.org/licenses/>         --
---                                                                           --
--------------------------------------------------------------------------------
- 
  
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -59,13 +41,9 @@ entity ula is
         --VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
         --BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
         
-		  --Y           : out  std_logic;
-        --U           : out  std_logic;
-        --V           : out  std_logic;
-        YUV         : out  std_logic_vector ( 7 downto 0 );
-        DAC_A       : out  std_logic_vector ( 1 downto 0 );
-        DAC_WR      : out  std_logic;
-		  
+		  Y           : out  std_logic;
+        U           : out  std_logic;
+        V           : out  std_logic;		  
                                                              -- interface com o Z80
         A14         : in   std_logic;                        -- Pino 37 - Linha A14 do Z80
         A15         : in   std_logic;                        -- Pino 38 - Linha A15 do Z80
@@ -146,14 +124,15 @@ architecture rtl of ula is
     signal HBlank_n       : std_logic := '1';
     signal burst          : std_logic := '0';
 
-    signal Y,U,V          : integer := 0;
-    signal yR,yG,yB       : integer := 0;
-    signal ySync,yR2      : integer := 0;
-    signal uR,uG,uB       : integer := 0;
-    signal uBurst         : integer := 0;
-    signal uFix,uR2  	  : integer := 0;
-    signal vR,vG,vB,vR2   : integer := 0;
-    signal vBurst,nvBurst : integer := 0;
+    signal yR2,uR2,vR2    : unsigned(7 downto 0);
+    signal yR,yG,yB       : unsigned(3 downto 0);
+    signal ySync      	  : unsigned(3 downto 0);
+    signal uR,uG,uB       : unsigned(3 downto 0);
+    signal uBurst         : unsigned(3 downto 0);
+    signal uFix  	  		  : unsigned(3 downto 0);
+    signal vR,vG,vB   	  : unsigned(3 downto 0);
+    signal vBurst,nvBurst : unsigned(3 downto 0);
+	 signal dcY,dcU,dcV    : integer;
 
     signal BorderColor    : std_logic_vector ( 2 downto 0 ) := "100";    
     signal rMic           : std_logic := '0';
@@ -191,15 +170,6 @@ architecture rtl of ula is
     signal VA             : std_logic_vector ( 13 downto 0 ) := ( OTHERS => '0' );
     signal VidClock       : std_logic;  
 
-	 
-    function to_int( s : std_logic ) return integer is
-    begin
-        if s = '1' then
-            return 1;
-        else
-            return 0;
-        end if;
-    end function;	 
     
 begin
     
@@ -535,41 +505,6 @@ begin
                 rB <= AttrOut( 3 );
                 
             end if;
-				
-				if ( rI='0' ) then  -- http://www.zxdesign.info/book/ pg. 158
-            
-                yR <= 178 * to_int( rR );
-                yG <= 348 * to_int( rG );
-                yB <=  92 * to_int( rB );
-                                
-            else
-            
-                yR <= 233 * to_int( rR );
-                yG <= 456 * to_int( rG );
-                yB <= 118 * to_int( rB );
-                
-            end if;
-				
-            ySync <= 597 * to_int( not HSync_n );
-            yR2 <= 310 * ( ySync + yR + yG + yB );
-            Y <= ( 430000 - yR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
-								
-            uR <= 216 * to_int( not rR ); -- http://www.zxdesign.info/book/ pg. 163
-            uG <= 431 * to_int( not rG );
-            uB <= 652 * to_int( rB );
-            uBurst <= 587 * to_int( not burst );
-            uFix <= 235;
-            uR2 <= 155 * ( uFix + uBurst + uR + uG + uB );
-            U <= ( 430000 - uR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
-				
-            vR <= 457 * to_int( rR ); -- http://www.zxdesign.info/book/ pg. 166
-            vG <= 383 * to_int( not rG );		
-            vB <=  78 * to_int( not rB );
-            vBurst <=  309 * to_int( burst );
-            nvBurst <= 309 * to_int( not burst );
-            vR2 <= 310 * ( vBurst + nvBurst + vR + vG + vB );
-            V <= ( 430000 - vR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
-				
         else -- esta fora da tela (periodos de "blank"), entao, preto
         
             rI <= '0';
@@ -578,8 +513,68 @@ begin
             rB <= '0';
             
         end if;
-    end process;	 
+		  
+        -- http://www.zxdesign.info/book/ pg. 158
+        if ( rI='0' ) then  
+           
+                yR <= 178 * unsigned'( '0'& rR );
+                yG <= 348 * unsigned'( '0'& rG );
+                yB <=  92 * unsigned'( '0'& rB );
+                                
+        else
+            
+                yR <= 233 * unsigned'( '0'& rR );
+                yG <= 456 * unsigned'( '0'& rG );
+                yB <= 118 * unsigned'( '0'& rB );
+                
+        end if;
+				
+        ySync <= 597 * unsigned'( '0'& not HSync_n );
+        yR2 <= 310 * ( ySync + yR + yG + yB );
+        dcY <= to_integer( ( 430000 - yR2 ) / 1686 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+				
+				
+        -- http://www.zxdesign.info/book/ pg. 163				
+        uR <= 216 * unsigned'( '0'& not rR ); 
+        uG <= 431 * unsigned'( '0'& not rG );
+        uB <= 652 * unsigned'( '0'& rB );
+        uBurst <= 587 * unsigned'( '0'& not burst );
+        uFix <= to_unsigned( 235, 4 );
+        uR2 <= 155 * ( uFix + uBurst + uR + uG + uB );
+        dcU <= to_integer( ( 430000 - uR2 ) / 1686 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+
+				
+        -- http://www.zxdesign.info/book/ pg. 166
+        vR <= 457 * unsigned'( '0'& rR ); 
+        vG <= 383 * unsigned'( '0'& not rG );		
+        vB <=  78 * unsigned'( '0'& not rB );
+        vBurst <=  309 * unsigned'( '0'& burst );
+        nvBurst <= 309 * unsigned'( '0'& not burst );
+        vR2 <= 310 * ( vBurst + nvBurst + vR + vG + vB );
+        dcV <= to_integer( ( 430000 - vR2 ) / 1686 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+		  
+    end process;	
 	
+    PWM_Y : entity work.PWM
+    port map( 
+        clk => clk7,
+        PWM => Y,
+        duty_cycle => dcY
+    );
+
+    PWM_U : entity work.PWM
+    port map( 
+        clk => clk7,
+        PWM => U,
+        duty_cycle => dcU
+    );
+	 
+	 PWM_V : entity work.PWM
+    port map( 
+        clk => clk7,
+        PWM => V,
+        duty_cycle => dcV
+    );
 
     -- Em alguns ciclos de refresh o acesso as memorias dinamicas deve ser feito pela ULA
     vidbus_en <=   '1' when Border_n = '1' and hc( 3 downto 0 ) = "0000" else
