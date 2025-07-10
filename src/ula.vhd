@@ -361,7 +361,7 @@ begin
 
     -- Geracao do Vout ( Mudanca entre borda e "miolo" )
 	-- Se Vout = 0, estamos dentro da tela
-    process ( VC, hc )
+    process ( vc, hc )
     begin
         if ( vc( 7 ) = '1' and vc( 6 ) = '1' ) or vc( 8 ) = '1' then     -- Borda vertical
         
