@@ -363,7 +363,11 @@ begin
 
     -- Geracao do Vout ( Mudanca entre borda e "miolo" )
 	-- Se Vout = 0, estamos dentro da tela
+<<<<<<< HEAD
     process ( VerticalActive, HorizontalActive )
+=======
+    process ( vc, hc )
+>>>>>>> 5df3d1c06aefbded7bee3a25792fb23d5a6efb5a
     begin
         if ( VerticalActive = '1' and HorizontalActive = '1' ) then
             Vout <= '0';
