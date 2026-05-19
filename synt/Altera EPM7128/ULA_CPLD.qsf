@@ -37,7 +37,7 @@
 
 
 set_global_assignment -name FAMILY MAX7000S
-set_global_assignment -name DEVICE "EPM7128STC100-10"
+set_global_assignment -name DEVICE "EPM7160STC100-10"
 set_global_assignment -name TOP_LEVEL_ENTITY ula
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "17:55:26  NOVEMBER 14, 2013"

@@ -39,8 +39,8 @@ entity top is
         --oBRIGHT      : out  std_logic;                             -- Pino 18 - Brilho
         --oCSYNC       : out  std_logic;                             -- Pino 33 - Sincronismo Composto
         --oCSYNC2      : out  std_logic;                             -- C�pia do pino 33
-        --oHSYNC       : out  std_logic;							   		-- Nao presente no CI original, e a saida de Sincronismo Horizontal
-        --oVSYNC       : out  std_logic;                             -- Nao presente no CI original, e a saida de Sincronismo Vertical
+        oHSYNC        : out  std_logic;							   		-- Nao presente no CI original, e a saida de Sincronismo Horizontal
+        oVSYNC        : out  std_logic;                             -- Nao presente no CI original, e a saida de Sincronismo Vertical
         --oBURSTGATE   : out  std_logic;                             -- Pino 35 - Marcacao do Color Burst para o CI LM1886
                                      
                                                                    -- interface com o Z80
@@ -83,16 +83,16 @@ begin
                     
         CPU        => oCPU,        
                     
-        --SUBCARRIER => oSUBCARRIER,     
+        SUBCARRIER => open,     
                     
         --RED        => oRED,          
         --GREEN      => oGREEN,         
         --BLUE       => oBLUE,         
         --BRIGHT     => oBRIGHT,        
-        --CSYNC      => s_CompSync,        
-        --HSYNC      => oHSYNC, 
-        --VSYNC      => oVSYNC, 
-        --BURSTGATE  => oBURSTGATE,    
+        CSYNC      => open,        
+        HSYNC      => oHSYNC, 
+        VSYNC      => oVSYNC, 
+        BURSTGATE  => open,    
                     
         A14        => iA14,            
         A15        => iA15,            

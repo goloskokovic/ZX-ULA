@@ -36,10 +36,10 @@ entity ula is
         --GREEN       : out  std_logic;                        -- Pino 19 - Verde
         --BLUE        : out  std_logic;                        -- Pino 22 - Azul
         --BRIGHT      : out  std_logic;                        -- Pino 18 - Brilho
-        --CSYNC       : out  std_logic;                        -- Pino 33 - Sincronismo Composto
-        --HSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Horizontal
-        --VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
-        --BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
+        CSYNC       : out  std_logic;                        -- Pino 33 - Sincronismo Composto
+        HSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Horizontal
+        VSYNC       : out  std_logic;                        -- Nao presente no CI original, e a saida de Sincronismo Vertical
+        BURSTGATE   : out  std_logic;                        -- Pino 35 - Marcacao do Color Burst para o CI LM1886
         
 		  Y           : out  std_logic;
         U           : out  std_logic;
@@ -117,22 +117,23 @@ architecture rtl of ula is
     signal FlashCnt       : unsigned ( 5 downto 0 ) := ( OTHERS => '0' );
     signal Pixel          : std_logic := '0';
     
-    signal rI,rG,rR,rB    : std_logic := '0';
+    signal rI,rG,rR,rB    : integer range 0 to 1;
     signal VSync_n        : std_logic := '1';
     signal HSync_n        : std_logic := '1';
     signal VBlank_n       : std_logic := '1';
     signal HBlank_n       : std_logic := '1';
     signal burst          : std_logic := '0';
-
-    signal yR2,uR2,vR2    : unsigned(7 downto 0);
-    signal yR,yG,yB       : unsigned(3 downto 0);
-    signal ySync      	  : unsigned(3 downto 0);
-    signal uR,uG,uB       : unsigned(3 downto 0);
-    signal uBurst         : unsigned(3 downto 0);
-    signal uFix  	  		  : unsigned(3 downto 0);
-    signal vR,vG,vB   	  : unsigned(3 downto 0);
-    signal vBurst,nvBurst : unsigned(3 downto 0);
-	 signal dcY,dcU,dcV    : integer;
+    signal VSyncStart     : unsigned ( 8 downto 0 ) := ( OTHERS => '0' );
+    signal VSyncEnd       : unsigned ( 8 downto 0 ) := ( OTHERS => '0' );
+    signal VLineMax       : unsigned ( 8 downto 0 ) := ( OTHERS => '0' );
+    signal VerticalActive : std_logic := '0';
+    signal HorizontalActive : std_logic := '0';
+    signal C3, C4, C5     : std_logic := '0';
+    signal C6, C7, C8     : std_logic := '0';
+    signal HSyncTrain     : std_logic := '0';
+    signal HSyncTrain_d   : std_logic_vector(7 downto 0) := (OTHERS => '0');
+    signal dcY,dcU,dcV    : integer;
+    
 
     signal BorderColor    : std_logic_vector ( 2 downto 0 ) := "100";    
     signal rMic           : std_logic := '0';
@@ -194,9 +195,27 @@ begin
     -- OSC esta a 14Mhz, logo o bit 0 sera o nosso clock de 7Mhz necessario em algumas partes da ULA   
     clk7 <= not hcc( 0 ); 
     
+    -- Seleciona as linhas de inicio e fim do VSync para PAL ou NTSC
+    VLineMax <= to_unsigned( 311, 9 ) when VERT50_60 = '0' else to_unsigned( 263, 9 );
+    VSyncStart <= to_unsigned( 248, 9 ) when VERT50_60 = '0' else to_unsigned( 216, 9 );
+    VSyncEnd   <= to_unsigned( 251, 9 ) when VERT50_60 = '0' else to_unsigned( 219, 9 );
+    VerticalActive <= '1' when vc <= to_unsigned( 191, 9 ) else '0';
+    HorizontalActive <= '1' when hc >= to_unsigned( 11, 9 ) and hc < to_unsigned( 268, 9 ) else '0';
+
     -- Os demais bits fazem o contador horizontal de 0 a 455
     -- Na pratica ele tambem pulsa a 7Mhz porque o bit 0 foi descartado
     hc( 8 downto 0 ) <= hcc( 9 downto 1 );
+
+    -- ULA internal horizontal clock phases for HSync generation
+    C3 <= hc( 3 );
+    C4 <= hc( 4 );
+    C5 <= hc( 5 );
+    C6 <= hc( 6 );
+    C7 <= hc( 7 );
+    C8 <= hc( 8 );
+
+    -- Intermediate train used to position the horizontal sync pulse
+    HSyncTrain <= C5 xor C4;
 
     -- contador Vertical
     process( clk7 )
@@ -206,7 +225,7 @@ begin
             VCrst <= '0';
 
             if ( hc = 447 ) then
-                if ( vc = 311 ) then
+                if ( vc = VLineMax ) then
                 
                     vc <= ( OTHERS => '0' );
                     VCrst <= '1';
@@ -240,22 +259,26 @@ begin
         end if;
     end process;
 
-    -- HSync - Ocorre dentro do HBlank e informa o comeco de uma nova linha
-	-- Tem duracao de 32 ciclos (4,4us)
+    -- HSync train derived from the ULA internal C4/C5 clock phases
+    HSyncTrain <= C5 xor C4;
+
+    -- Delay the HSync train by 8 cycles to match 6C001 front porch timing
     process( clk7 )
     begin
         if falling_edge( clk7 ) then
+            HSyncTrain_d <= HSyncTrain_d(6 downto 0) & HSyncTrain;
+        end if;
+    end process;
 
-            if ( hc = 344 ) then
-            
+    -- HSync - Ocorre dentro do HBlank e informa o comeco de uma nova linha
+    process( clk7 )
+    begin
+        if falling_edge( clk7 ) then
+            if ( HBlank_n = '0' and HSyncTrain_d( 7 ) = '1' ) then
                 HSync_n <= '0';
-                
-            elsif ( hc = 375 ) then
-            
+            else
                 HSync_n <= '1';
-                
             end if;
-
         end if;
     end process;
 
@@ -279,39 +302,29 @@ begin
         end if;
     end process;
 
-    -- VBlank - Nas TVs antigas, periodo que o feixe de eletrons era reposicionado no comeco da tela para um novo quadro da imagem
-	-- O pino de selecao de frequencia da ULA e levado em conta para acertar a temporizacao
+    -- VBlank - periodo de blank apenas enquanto o pulso de VSync estiver ativo
     process( clk7 )
     begin
         if falling_edge( clk7 ) then
 
-            if ( vc = 248 ) then
-                 
+            if ( vc = VSyncStart ) then
                 VBlank_n <= '0';
-                
-            elsif ( vc = 255 ) then
-                     
+            elsif ( vc = VSyncEnd + 1 ) then
                 VBlank_n <= '1';
-                
             end if;
 
         end if;
     end process;
     
     -- VSync - Pulso que indica um novo quadro de imagem
-    -- O pino de selecao de frequencia da ULA e levado em conta para acertar a temporizacao
     process( clk7 )
     begin
         if falling_edge( clk7 ) then
             
-            if ( vc = 248 ) then
-                 
+            if ( vc = VSyncStart ) then
                 VSync_n <= '0';
-                
-            elsif ( vc = 251 ) then
-                     
+            elsif ( vc = VSyncEnd + 1 ) then
                 VSync_n <= '1';
-                
             end if;
             
         end if;
@@ -322,14 +335,10 @@ begin
     begin
         if falling_edge( clk7 ) then
 
-            if ( vc = 248 and hc = 0 ) then
-                 
+            if ( vc = VSyncStart and hc = 0 ) then
                 INT_n <= '0';
-                
-            elsif ( vc = 248 and  hc = 31 ) then
-                     
+            elsif ( vc = VSyncStart and hc = 31 ) then
                 INT_n <= '1';
-                
             end if;
 
         end if;
@@ -343,17 +352,10 @@ begin
     begin
         if falling_edge( clk7 ) then
         
-            if ( ( vc( 7 ) = '1' and vc( 6 ) = '1' ) or 
-				 vc( 8 ) = '1' or 
-				 hc( 8 ) = '1'
-				) then
-            
+            if ( VerticalActive = '0' or HBlank_n = '0' ) then
                 Border_n <= '0';
-                
             else
-            
                 Border_n <= '1';
-                
             end if;
             
         end if;
@@ -361,20 +363,12 @@ begin
 
     -- Geracao do Vout ( Mudanca entre borda e "miolo" )
 	-- Se Vout = 0, estamos dentro da tela
-    process ( VC, hc )
+    process ( VerticalActive, HorizontalActive )
     begin
-        if ( vc( 7 ) = '1' and vc( 6 ) = '1' ) or vc( 8 ) = '1' then     -- Borda vertical
-        
-            Vout <= '1';
-            
-        elsif ( hc >= "000001011" and hc < "100001100" ) then
-        
+        if ( VerticalActive = '1' and HorizontalActive = '1' ) then
             Vout <= '0';
-            
         else
-        
             Vout <= '1';
-            
         end if;
     end process;
 	
@@ -485,73 +479,86 @@ begin
 	 -- Notar que o FlashCnt inverte a condicao quanto e a hora de piscar
     Pixel <= SRegister( 7 ) xor ( AttrOut( 7 ) and FlashCnt( 5 ) );
 
-
-	-- Colocarmos as informacoes nas variaveis de RGB
+	
     process( HBlank_n, VBlank_n, Pixel, AttrOut, HSync_n, burst )
-    begin
+    variable temp : integer;
+	 variable yR2,uR2,vR2    : integer;
+    variable yR,yG,yB       : integer;
+    variable ySync      	  : integer;
+    variable uR,uG,uB       : integer;
+    variable uBurst         : integer;
+    variable uFix  	  		  : integer;
+    variable vR,vG,vB   	  : integer;
+    variable vBurst,nvBurst : integer;
+	 
+	 begin
         if ( HBlank_n = '1' and VBlank_n = '1' ) then
             if ( Pixel = '1' ) then --Se e ink
             
-                rI <= AttrOut( 6 );
-                rG <= AttrOut( 2 );
-                rR <= AttrOut( 1 );
-                rB <= AttrOut( 0 );
+                rI <= to_integer(unsigned'( '0'& AttrOut( 6 )));
+                rG <= to_integer(unsigned'( '0'& AttrOut( 2 )));
+                rR <= to_integer(unsigned'( '0'& AttrOut( 1 )));
+                rB <= to_integer(unsigned'( '0'& AttrOut( 0 )));
                 
             else --se e paper
             
-                rI <= AttrOut( 6 );
-                rG <= AttrOut( 5 );
-                rR <= AttrOut( 4 );
-                rB <= AttrOut( 3 );
+                rI <= to_integer(unsigned'( '0'& AttrOut( 6 )));
+                rG <= to_integer(unsigned'( '0'& AttrOut( 5 )));
+                rR <= to_integer(unsigned'( '0'& AttrOut( 4 )));
+                rB <= to_integer(unsigned'( '0'& AttrOut( 3 )));
                 
             end if;
         else -- esta fora da tela (periodos de "blank"), entao, preto
         
-            rI <= '0';
-            rG <= '0';
-            rR <= '0';
-            rB <= '0';
+            rI <= 0;
+            rG <= 0;
+            rR <= 0;
+            rB <= 0;
             
         end if;
 		  
         -- http://www.zxdesign.info/book/ pg. 158
-        if ( rI='0' ) then  
+        if ( rI= 0 ) then  
            
-                yR <= 178 * unsigned'( '0'& rR );
-                yG <= 348 * unsigned'( '0'& rG );
-                yB <=  92 * unsigned'( '0'& rB );
+                yR := 178 * rR;
+                yG := 348 * rG;
+                yB :=  92 * rB;
                                 
         else
             
-                yR <= 233 * unsigned'( '0'& rR );
-                yG <= 456 * unsigned'( '0'& rG );
-                yB <= 118 * unsigned'( '0'& rB );
+                yR := 233 * rR;
+                yG := 456 * rG;
+                yB := 118 * rB;
                 
         end if;
-				
-        ySync <= 597 * unsigned'( '0'& not HSync_n );
-        yR2 <= 310 * ( ySync + yR + yG + yB );
-        dcY <= to_integer( ( 430000 - yR2 ) / 1686 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+		
+		
+        ySync := 597 * to_integer( unsigned'( '0'& not HSync_n ));
+        temp := ySync + yR + yG + yB;
+		  yR2 := 310 * temp;
+        dcY <= ( 430000 - yR2 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
 				
 				
         -- http://www.zxdesign.info/book/ pg. 163				
-        uR <= 216 * unsigned'( '0'& not rR ); 
-        uG <= 431 * unsigned'( '0'& not rG );
-        uB <= 652 * unsigned'( '0'& rB );
-        uBurst <= 587 * unsigned'( '0'& not burst );
-        uFix <= to_unsigned( 235, 4 );
-        uR2 <= 155 * ( uFix + uBurst + uR + uG + uB );
-        dcU <= to_integer( ( 430000 - uR2 ) / 1686 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+        uR := 216 *  rR; 
+        uG := 431 *  rG;
+        uB := 652 * rB;
+        uBurst := 587 * to_integer(unsigned'( '0'& not burst ));
+        uFix := 235;
+		  temp := uFix + uBurst + uR + uG + uB;
+        uR2 := 155 * temp;
+        dcU <= ( 430000 - uR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
 
 				
         -- http://www.zxdesign.info/book/ pg. 166
-        vR <= 457 * unsigned'( '0'& rR ); 
-        vG <= 383 * unsigned'( '0'& not rG );		
-        vB <=  78 * unsigned'( '0'& not rB );
-        vBurst <=  309 * unsigned'( '0'& burst );
-        nvBurst <= 309 * unsigned'( '0'& not burst );
-        vR2 <= 310 * ( vBurst + nvBurst + vR + vG + vB );
-        dcV <= to_integer( ( 430000 - vR2 ) / 1686 ); -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
+        vR := 457 * rR; 
+        vG := 383 *  rG;		
+        vB :=  78 *  rB;
+        vBurst :=  309 * to_integer(unsigned'( '0'& burst ));
+        nvBurst := 309 * to_integer(unsigned'( '0'& not burst ));
+		  temp := vBurst + nvBurst + vR + vG + vB;
+        --vR2 := 310 * temp;
+        dcV <= ( 430000 - vR2 ) / 1686; -- to fit max 4.3V in 8bit: 430000 / 1686 = 255.04
 		  
     end process;	
 	
@@ -838,13 +845,13 @@ begin
     --GREEN  <= rG;
     --BLUE   <= rB;
     --BRIGHT <= rI and ( rR or rg or rB );   -- Saida de Bright. Temos que combinar com os bits de cor para evita bright no preto
-    --CSYNC  <= HSync_n and VSync_n;
-    --HSYNC  <= HSync_n;
-    --VSYNC  <= VSync_n;
+    CSYNC  <= HSync_n and VSync_n;
+    HSYNC  <= HSync_n;
+    VSYNC  <= VSync_n;
 		   
 
     -- outros pinos    
-    --BURSTGATE   <= burst;
+    BURSTGATE   <= burst;
     --SUBCARRIER  <= subc;
     --MIC         <= rMic;
     SOUND       <= rSpk;
