@@ -114,6 +114,7 @@ architecture rtl of ula is
     signal SRegister      : std_logic_vector ( 7 downto 0 ) := ( OTHERS => '0' );
     signal AttrReg        : std_logic_vector ( 7 downto 0 ) := ( OTHERS => '0' );
     signal AttrOut        : std_logic_vector ( 7 downto 0 ) := ( OTHERS => '0' );
+    signal AttrOutMux     : std_logic_vector ( 7 downto 0 ) := ( OTHERS => '0' );
     signal FlashCnt       : unsigned ( 5 downto 0 ) := ( OTHERS => '0' );
     signal Pixel          : std_logic := '0';
     
@@ -128,6 +129,7 @@ architecture rtl of ula is
     signal VLineMax       : unsigned ( 8 downto 0 ) := ( OTHERS => '0' );
     signal VerticalActive : std_logic := '0';
     signal HorizontalActive : std_logic := '0';
+    signal VidEN          : std_logic := '0';
     signal C3, C4, C5     : std_logic := '0';
     signal C6, C7, C8     : std_logic := '0';
     signal HSyncTrain     : std_logic := '0';
@@ -363,11 +365,7 @@ begin
 
     -- Geracao do Vout ( Mudanca entre borda e "miolo" )
 	-- Se Vout = 0, estamos dentro da tela
-<<<<<<< HEAD
     process ( VerticalActive, HorizontalActive )
-=======
-    process ( vc, hc )
->>>>>>> 5df3d1c06aefbded7bee3a25792fb23d5a6efb5a
     begin
         if ( VerticalActive = '1' and HorizontalActive = '1' ) then
             Vout <= '0';
@@ -376,6 +374,9 @@ begin
         end if;
     end process;
 	
+    -- VidEN: delay the border-to-display transition until C3 is high
+    VidEN <= '1' when Vout = '0' and C3 = '1' else '0';
+
     -- Geramos o sinal de Vout com atraso
     process ( OSC )
     begin
@@ -391,9 +392,8 @@ begin
     AOLatch_n <= '0' when hc( 2 downto 0 ) = "101" else '1';            -- ciclos de refresh 5 e 13
 	
 	-- AL1 e AL2 - Durante o refresh das memorias dinamicas, tambem devem ser lidos os bytes para os pixels (AL1) e os bytes para os atributos (AL2)
-    AL1 <= '0' when Border_n = '1' and ( hc( 3 downto 1 ) = "100" or hc( 3 downto 1 ) = "110" ) else '1';
-    AL2 <= '0' when Border_n = '1' and ( hc( 3 downto 1 ) = "101" or hc( 3 downto 1 ) = "111" ) else '1';
-
+    AL1 <= '0' when VidEN = '1' and ( hc( 3 downto 1 ) = "100" or hc( 3 downto 1 ) = "110" ) else '1';
+    AL2 <= '0' when VidEN = '1' and ( hc( 3 downto 1 ) = "101" or hc( 3 downto 1 ) = "111" ) else '1';
     -- Buffer para os Pixels - Fazemos uma cópia para usar posteriormente durante o envio para a saida RGB
     process( AL1 )
     begin
@@ -420,7 +420,7 @@ begin
     begin
         if falling_edge( clk7 ) then
         
-            if ( hc( 2 ) = '1' and hc( 1 ) = '0' and hc( 0 ) = '0' and Vout = '0' ) then            -- ciclos de refresh 4 e 12
+            if ( hc( 2 ) = '1' and hc( 1 ) = '0' and hc( 0 ) = '0' and VidEN = '1' ) then            -- ciclos de refresh 4 e 12
             
                 SLoad <= '1';
                 
@@ -451,21 +451,15 @@ begin
     end process;
 	
 
-    -- Delay para o buffer dos atributos
-    process( Vout_delayed, AOLatch_n, BorderColor )
+    -- Attribute output latch and border multiplexer
+    process( AOLatch_n )
     begin
-    
-        if Vout_delayed = '1' then
-        
-            AttrOut <= "00" & BorderColor & BorderColor;
-            
-        elsif falling_edge( AOLatch_n ) then
-        
+        if falling_edge( AOLatch_n ) then
             AttrOut <= AttrReg;
-            
         end if;
-        
     end process;
+
+    AttrOutMux <= "00" & BorderColor & BorderColor when Vout = '1' else AttrOut;
 
     -- Contador do Flash. Usado para calcular a velocidade que pisca 
     process( VSync_n )
@@ -481,10 +475,10 @@ begin
   	 -- Testa se o byte lido e "paper" (Pixel=0) ou "ink" (Pixel=1). 
 	 -- Somente o bit 7 (mais a esquerda) e colocado na tela. Os proximos aguardam o shift acontecer 
 	 -- Notar que o FlashCnt inverte a condicao quanto e a hora de piscar
-    Pixel <= SRegister( 7 ) xor ( AttrOut( 7 ) and FlashCnt( 5 ) );
+    Pixel <= SRegister( 7 ) xor ( AttrOutMux( 7 ) and FlashCnt( 5 ) );
 
 	
-    process( HBlank_n, VBlank_n, Pixel, AttrOut, HSync_n, burst )
+    process( HBlank_n, VBlank_n, Pixel, AttrOutMux, HSync_n, burst )
     variable temp : integer;
 	 variable yR2,uR2,vR2    : integer;
     variable yR,yG,yB       : integer;
@@ -499,17 +493,17 @@ begin
         if ( HBlank_n = '1' and VBlank_n = '1' ) then
             if ( Pixel = '1' ) then --Se e ink
             
-                rI <= to_integer(unsigned'( '0'& AttrOut( 6 )));
-                rG <= to_integer(unsigned'( '0'& AttrOut( 2 )));
-                rR <= to_integer(unsigned'( '0'& AttrOut( 1 )));
-                rB <= to_integer(unsigned'( '0'& AttrOut( 0 )));
+                rI <= to_integer(unsigned'( '0'& AttrOutMux( 6 )));
+                rG <= to_integer(unsigned'( '0'& AttrOutMux( 2 )));
+                rR <= to_integer(unsigned'( '0'& AttrOutMux( 1 )));
+                rB <= to_integer(unsigned'( '0'& AttrOutMux( 0 )));
                 
             else --se e paper
             
-                rI <= to_integer(unsigned'( '0'& AttrOut( 6 )));
-                rG <= to_integer(unsigned'( '0'& AttrOut( 5 )));
-                rR <= to_integer(unsigned'( '0'& AttrOut( 4 )));
-                rB <= to_integer(unsigned'( '0'& AttrOut( 3 )));
+                rI <= to_integer(unsigned'( '0'& AttrOutMux( 6 )));
+                rG <= to_integer(unsigned'( '0'& AttrOutMux( 5 )));
+                rR <= to_integer(unsigned'( '0'& AttrOutMux( 4 )));
+                rB <= to_integer(unsigned'( '0'& AttrOutMux( 3 )));
                 
             end if;
         else -- esta fora da tela (periodos de "blank"), entao, preto
@@ -588,8 +582,9 @@ begin
     );
 
     -- Em alguns ciclos de refresh o acesso as memorias dinamicas deve ser feito pela ULA
-    vidbus_en <=   '1' when Border_n = '1' and hc( 3 downto 0 ) = "0000" else
-                   '0' when Border_n = '1' and hc( 3 downto 0 ) = "1000";
+    vidbus_en <= '1' when Border_n = '1' and
+                          (hc( 3 downto 0 ) = "0000" or hc( 3 downto 0 ) = "1000")
+                   else '0';
              
 	-- Quando a ULA nao acessa as memorias dinamicas, a vez e da CPU
     cpubus_en <= not vidbus_en;
@@ -708,38 +703,40 @@ begin
         
     end process;
 
-    process ( vidbus_en, AL2, cnt_refresh )
+    process ( vidbus_en, AL2, hc, vc )
     begin
-    
-        if vidbus_en = '0' then                        -- Fase da ULA
-        
-            VA( 0 ) <= cnt_refresh( 0 );
-            VA( 1 ) <= cnt_refresh( 1 );
-            VA( 2 ) <= cnt_refresh( 2 );
-            VA( 3 ) <= cnt_refresh( 3 );
-            VA( 4 ) <= cnt_refresh( 4 );
-            VA( 5 ) <= cnt_refresh( 8 );
-            VA( 6 ) <= cnt_refresh( 9 );
-            VA( 7 ) <= cnt_refresh( 10 );
 
-            if ( AL2 = '0' ) then
-            
-                VA( 8 )  <= cnt_refresh(11);
-                VA( 9 )  <= cnt_refresh(12);
+        if vidbus_en = '0' then                        -- Fase da ULA
+
+            -- Common DRAM row address bits: C7..C3 and V4..V3
+            VA( 0 ) <= hc( 3 );
+            VA( 1 ) <= hc( 4 );
+            VA( 2 ) <= hc( 5 );
+            VA( 3 ) <= hc( 6 );
+            VA( 4 ) <= hc( 7 );
+            VA( 5 ) <= vc( 3 );
+            VA( 6 ) <= vc( 4 );
+
+            if ( AL2 = '0' ) then                     -- attribute byte fetch
+
+                VA( 7 )  <= vc( 5 );
+                VA( 8 )  <= vc( 6 );
+                VA( 9 )  <= vc( 7 );
                 VA( 10 ) <= '0';
                 VA( 11 ) <= '1';
                 VA( 12 ) <= '1';
                 VA( 13 ) <= '0';
-                
-            else
-            
-                VA( 8 )  <= cnt_refresh( 5 );
-                VA( 9 )  <= cnt_refresh( 6 );
-                VA( 10 ) <= cnt_refresh( 7 );
-                VA( 11 ) <= cnt_refresh( 11 );
-                VA( 12 ) <= cnt_refresh( 12 );
+
+            else                                      -- display byte fetch
+
+                VA( 7 )  <= vc( 5 );
+                VA( 8 )  <= vc( 0 );
+                VA( 9 )  <= vc( 1 );
+                VA( 10 ) <= vc( 2 );
+                VA( 11 ) <= vc( 6 );
+                VA( 12 ) <= vc( 7 );
                 VA( 13 ) <= '0';
-                
+
             end if;
         else
             VA( 13 downto 0 ) <= ( OTHERS => 'Z' );        -- Fase da CPU, entao libera o barramento de enderecos para o Z80
@@ -841,7 +838,7 @@ begin
     -- Pinos para as memorias dinamicas
     VRAM_RAS <= RAS; 
     VRAM_CAS <= CAS;
-    VRAM_WR  <= cpubus_en or WR; -- Se e a vez da CPU usar a memoria e se houve uma operacao de escrita, ativa o sinal.
+    VRAM_WR  <= '1' when vidbus_en = '1' else WR; -- Passa WR para o DRAM quando a CPU usa o barramento.
                                  -- A ULA na pratica nunca escreve nas memorias dinamicas, apenas le o seu conteudo e monta a tela. 
     
     -- Saida de video
